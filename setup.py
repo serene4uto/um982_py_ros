@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            "um982_node = um982_py_ros.um982_node:main",
         ],
     },
 )
