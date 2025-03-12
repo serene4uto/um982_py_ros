@@ -4,6 +4,7 @@ import threading
 import time
 import math
 
+
 def crc_table():
     table = []
     for i in range(256):
@@ -16,7 +17,9 @@ def crc_table():
         table.append(crc)
     return table
 
+
 NMEA_EXPEND_CRC_TABLE = crc_table()
+
 
 def nmea_expend_crc(nmea_expend_sentence):
     def calculate_crc32(data):
@@ -33,6 +36,7 @@ def nmea_expend_crc(nmea_expend_sentence):
     calculated_crc = calculate_crc32(sentence.encode())
     return crc.lower() == format(calculated_crc, '08x')
 
+
 def nmea_crc(nmea_sentence):
     try:
         sentence, crc = nmea_sentence[1:].split("*")
@@ -45,19 +49,34 @@ def nmea_crc(nmea_sentence):
     calculated_checksum_hex = format(calculated_checksum, 'X')
     return calculated_checksum_hex.zfill(2) == crc.upper()
 
+
 def msg_seperate(msg:str):
-    return msg[1:msg.find('*')].split(',')
+    header, body = msg[:msg.find('*')].split(';')
+    
+    return {
+        'header': header,
+        'body': body.split(',')
+    }
+
 
 def PVTSLN_solver(msg:str):
     parts = msg_seperate(msg)
-    bestpos_hgt    = float(parts[3+7])  
-    bestpos_lat    = float(parts[4+7])  
-    bestpos_lon    = float(parts[5+7])  
-    bestpos_hgtstd = float(parts[6+7])  
-    bestpos_latstd = float(parts[7+7])  
-    bestpos_lonstd = float(parts[8+7])  
-    fix = (bestpos_hgt, bestpos_lat, bestpos_lon, bestpos_hgtstd, bestpos_latstd, bestpos_lonstd)
-    return fix
+    bestpos_type   = str(parts['body'][0])
+    bestpos_hgt    = float(parts['body'][1])  
+    bestpos_lat    = float(parts['body'][2])  
+    bestpos_lon    = float(parts['body'][3])  
+    bestpos_hgtstd = float(parts['body'][4])  
+    bestpos_latstd = float(parts['body'][5])  
+    bestpos_lonstd = float(parts['body'][6])  
+    
+    heading_type = str(parts['body'][20])
+    heading_len  = float(parts['body'][21])
+    heading_deg  = float(parts['body'][21])
+    heading_pitch = float(parts['body'][22])
+    
+    bestpos = (bestpos_type, bestpos_hgt, bestpos_lat, bestpos_lon, bestpos_hgtstd, bestpos_latstd, bestpos_lonstd)
+    heading = (heading_type, heading_len, heading_deg, heading_pitch)
+    return bestpos, heading
 
 
 def GNHPR_solver(msg:str):
@@ -79,6 +98,7 @@ def BESTNAV_solver(msg:str):
     vel_north   = vel_hor * math.cos(math.radians(vel_heading))
     vel_east    = vel_hor * math.sin(math.radians(vel_heading))
     return (vel_east, vel_north, vel_ver, vel_hor_std, vel_hor_std, vel_ver_std)
+
 
 class UM982:
     def __init__(
@@ -124,8 +144,8 @@ class UM982:
         # Send GPGGA configuration command
         self.write_config("gpgga 1\r\n") # Global Positioning System Fix Data
         self.write_config("pvtslna 1\r\n") # Position, Velocity, Time, Satellite Information
-        self.write_config("bestnava 1\r\n") # Best Position and Velocity
-        self.write_config("gphpr 1\r\n") # Attitude Parameters
+        # self.write_config("bestnava 1\r\n") # Best Position and Velocity
+        # self.write_config("gphpr 1\r\n") # Attitude Parameters
         
         self.last_fix_ = None
         self.last_orientation_ = None
@@ -149,7 +169,7 @@ class UM982:
     def write_rtcm(self, data):
         """ Send RTCM data """
         if self.rtcm_serial.is_open:
-            self.rtcm_serial.write(data.encode('utf-8'))
+            self.rtcm_serial.write(data)
 
     def _data_rx_thread(self):
         """ Thread for reading data from the serial port """
@@ -161,34 +181,33 @@ class UM982:
                         pass
                     if frame.startswith("$GNGGA") and nmea_crc(frame):
                         self.last_nmea_ = frame
-                    if frame.startswith("$GNHPR") and nmea_crc(frame):
-                        self.last_orientation_ = GNHPR_solver(frame)
                     if frame.startswith("#PVTSLNA") and nmea_expend_crc(frame):
-                        self.last_fix_ = PVTSLN_solver(frame)
-                    if frame.startswith("#BESTNAVA") and nmea_expend_crc(frame):
-                        self.last_vel_ = BESTNAV_solver(frame)
+                        self.last_bestpos_, self.last_heading_ = PVTSLN_solver(frame)
+                    # if frame.startswith("$GNHPR") and nmea_crc(frame):
+                    #     self.last_orientation_ = GNHPR_solver(frame)
+                    # if frame.startswith("#BESTNAVA") and nmea_expend_crc(frame):
+                    #     self.last_vel_ = BESTNAV_solver(frame)
+
                     
             except Exception as e:
                 print(f"Error reading serial: {e}")
                 self.running = False
                 break  # Exit the loop if there's an error
     
-    def get_fix(self):
-        last_fix = self.last_fix_
-        self.last_fix_ = None
-        return last_fix
-    def get_orientation(self):
-        last_orientation = self.last_orientation_
-        self.last_orientation_ = None
-        return last_orientation
-    def get_vel(self):
-        last_vel = self.last_vel_
-        self.last_vel_ = None
-        return last_vel
+    def get_bestpos(self):
+        bestpos = self.last_bestpos_
+        self.last_bestpos_ = None
+        return bestpos
+    
+    def get_heading(self):
+        heading = self.last_heading_
+        self.last_heading_ = None
+        return heading
+    
     def get_nmea(self):
-        last_nmea = self.last_nmea_
+        nmea = self.last_nmea_
         self.last_nmea_ = None
-        return last_nmea
+        return nmea
 
 def main():
     um982 = UM982(data_port="/dev/ttyUSB0", rtcm_port="/dev/ttyUSB1")
