@@ -5,99 +5,107 @@ import time
 import math
 
 
-def crc_table():
-    table = []
-    for i in range(256):
-        crc = i
-        for j in range(8, 0, -1):
-            if crc & 1:
-                crc = (crc >> 1) ^ 0xEDB88320
-            else:
-                crc >>= 1
-        table.append(crc)
-    return table
-
-
-NMEA_EXPEND_CRC_TABLE = crc_table()
+# Pre-compute CRC table for better performance
+NMEA_EXPEND_CRC_TABLE = [
+    (i >> 1) ^ (0xEDB88320 if i & 1 else 0) for i in range(256)
+    for _ in range(7)
+]
 
 
 def nmea_expend_crc(nmea_expend_sentence):
-    def calculate_crc32(data):
-        crc = 0
-        for byte in data:
-            crc = NMEA_EXPEND_CRC_TABLE[(crc ^ byte) & 0xFF] ^ (crc >> 8)
-        return crc & 0xFFFFFFFF
-
+    """Validate CRC32 checksum for extended NMEA sentences."""
     try:
         sentence, crc = nmea_expend_sentence[1:].split("*")
-        crc = crc[:8]
+        crc = crc[:8].lower()
+        
+        # Calculate CRC32 in one pass
+        calculated_crc = 0
+        for byte in sentence.encode():
+            calculated_crc = NMEA_EXPEND_CRC_TABLE[(calculated_crc ^ byte) & 0xFF] ^ (calculated_crc >> 8)
+        
+        return crc == format(calculated_crc & 0xFFFFFFFF, '08x')
     except:
         return False
-    calculated_crc = calculate_crc32(sentence.encode())
-    return crc.lower() == format(calculated_crc, '08x')
 
 
 def nmea_crc(nmea_sentence):
+    """Validate simple XOR checksum for standard NMEA sentences."""
     try:
         sentence, crc = nmea_sentence[1:].split("*")
-        crc = crc[:2]
+        crc = crc[:2].upper()
+        
+        # Calculate XOR checksum
+        calculated_checksum = 0
+        for char in sentence:
+            calculated_checksum ^= ord(char)
+            
+        return format(calculated_checksum, 'X').zfill(2) == crc
     except:
         return False
-    calculated_checksum = 0
-    for char in sentence:
-        calculated_checksum ^= ord(char)
-    calculated_checksum_hex = format(calculated_checksum, 'X')
-    return calculated_checksum_hex.zfill(2) == crc.upper()
 
 
-def msg_seperate(msg:str):
-    header, body = msg[:msg.find('*')].split(';')
-    
+def msg_seperate(msg):
+    """Parse NMEA message into header and body components."""
+    parts = msg[:msg.find('*')].split(';')
     return {
-        'header': header,
-        'body': body.split(',')
+        'header': parts[0],
+        'body': parts[1].split(',') if len(parts) > 1 else []
     }
 
 
-def PVTSLN_solver(msg:str):
+def PVTSLN_solver(msg):
+    """Parse PVTSLN message into position and heading data."""
     parts = msg_seperate(msg)
-    bestpos_type   = str(parts['body'][0])
-    bestpos_hgt    = float(parts['body'][1])  
-    bestpos_lat    = float(parts['body'][2])  
-    bestpos_lon    = float(parts['body'][3])  
-    bestpos_hgtstd = float(parts['body'][4])  
-    bestpos_latstd = float(parts['body'][5])  
-    bestpos_lonstd = float(parts['body'][6])  
+    body = parts['body']
     
-    heading_type = str(parts['body'][20])
-    heading_len  = float(parts['body'][21])
-    heading_deg  = float(parts['body'][21])
-    heading_pitch = float(parts['body'][22])
+    # Unpack position data in one operation
+    bestpos = (
+        body[0],                # type
+        float(body[1]),         # height
+        float(body[2]),         # latitude
+        float(body[3]),         # longitude
+        float(body[4]),         # height std
+        float(body[5]),         # latitude std
+        float(body[6])          # longitude std
+    )
     
-    bestpos = (bestpos_type, bestpos_hgt, bestpos_lat, bestpos_lon, bestpos_hgtstd, bestpos_latstd, bestpos_lonstd)
-    heading = (heading_type, heading_len, heading_deg, heading_pitch)
+    # Unpack heading data in one operation
+    heading = (
+        body[20],               # type
+        float(body[21]),        # length
+        float(body[21]),        # degrees
+        float(body[22])         # pitch
+    )
+    
     return bestpos, heading
 
 
-def GNHPR_solver(msg:str):
+def GNHPR_solver(msg):
+    """Parse GNHPR message for orientation data."""
     parts = msg_seperate(msg)
-    heading = float(parts[3-1])
-    pitch   = float(parts[4-1])
-    roll    = float(parts[5-1])
-    orientation = (heading, pitch, roll)
-    return orientation
+    body = parts['body']
+    
+    # Return heading, pitch, roll tuple
+    return (float(body[2]), float(body[3]), float(body[4]))
 
 
-def BESTNAV_solver(msg:str):
+def BESTNAV_solver(msg):
+    """Parse BESTNAV message for velocity data."""
     parts = msg_seperate(msg)
-    vel_hor_std = float(parts[-1])  
-    vel_ver_std = float(parts[-2]) 
-    vel_ver     = float(parts[-3])
-    vel_heading = float(parts[-4]) 
-    vel_hor     = float(parts[-5])
-    vel_north   = vel_hor * math.cos(math.radians(vel_heading))
-    vel_east    = vel_hor * math.sin(math.radians(vel_heading))
-    return (vel_east, vel_north, vel_ver, vel_hor_std, vel_hor_std, vel_ver_std)
+    body = parts['body']
+    
+    # Extract velocity components
+    vel_hor = float(body[-5])
+    vel_heading_rad = math.radians(float(body[-4]))
+    
+    return (
+        vel_hor * math.sin(vel_heading_rad),  # vel_east
+        vel_hor * math.cos(vel_heading_rad),  # vel_north
+        float(body[-3]),                      # vel_ver
+        float(body[-1]),                      # vel_hor_std
+        float(body[-1]),                      # vel_hor_std (duplicated)
+        float(body[-2])                       # vel_ver_std
+    )
 
 
 class UM982:
@@ -112,23 +120,26 @@ class UM982:
         self.data_port_baudrate = data_port_baudrate
         self.rtcm_port = rtcm_port
         self.rtcm_port_baudrate = rtcm_port_baudrate
-        self.running = False  # Flag to manage the thread safely
-
-        # Configure serial for data
-        self.data_serial = serial.Serial(
-            port=self.data_port,
-            baudrate=self.data_port_baudrate,
-            timeout=1.0
-        )
+        self.running = False
         
-        # Configure serial for RTCM
-        self.rtcm_serial = serial.Serial(
-            port=self.rtcm_port,
-            baudrate=self.rtcm_port_baudrate,
-            timeout=1.0
-        )
-
-        self.data_port_thread = threading.Thread(target=self._data_rx_thread, daemon=True)
+        try:
+            # Configure serial for data
+            self.data_serial = serial.Serial(
+                port=self.data_port,
+                baudrate=self.data_port_baudrate,
+                timeout=1.0
+            )
+            
+            # Configure serial for RTCM
+            self.rtcm_serial = serial.Serial(
+                port=self.rtcm_port,
+                baudrate=self.rtcm_port_baudrate,
+                timeout=1.0
+            ) if rtcm_port else None
+    
+            self.data_port_thread = threading.Thread(target=self._data_rx_thread, daemon=True)
+        except serial.SerialException as e:
+            raise RuntimeError(f"Failed to initialize serial ports: {e}")
     
     def open(self):
         """ Open serial ports and start listening thread """
@@ -188,7 +199,6 @@ class UM982:
                     # if frame.startswith("#BESTNAVA") and nmea_expend_crc(frame):
                     #     self.last_vel_ = BESTNAV_solver(frame)
 
-                    
             except Exception as e:
                 print(f"Error reading serial: {e}")
                 self.running = False

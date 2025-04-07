@@ -15,20 +15,22 @@ class UM982Node(Node):
         super().__init__('um982_node')
         self.get_logger().info('UM982 Node has been started')
         
-        self.declare_parameter('data_port', '/dev/ttyUSB0')
-        self.declare_parameter('data_port_baudrate', 115200)
-        self.declare_parameter('rtcm_port', '/dev/ttyUSB1')
-        self.declare_parameter('rtcm_port_baudrate', 115200)
-        self.declare_parameter('heading_rad_offset', 0)
+        # Declare parameters
+        self.declare_parameter('port.gnss', '/dev/UM982')
+        self.declare_parameter('port.gnss_baudrate', 115200)
+        self.declare_parameter('port.rtcm', '/dev/UM982-RTCM')
+        self.declare_parameter('port.rtcm_baudrate', 115200)
+        self.declare_parameter('heading_offset', 0.0)
         
-        self.data_port = self.get_parameter('data_port').value
-        self.data_port_baudrate = self.get_parameter('data_port_baudrate').value
-        self.rtcm_port = self.get_parameter('rtcm_port').value
-        self.rtcm_port_baudrate = self.get_parameter('rtcm_port_baudrate').value
-        self.heading_rad_offset = self.get_parameter('heading_rad_offset').value
+        # Get parameters
+        self.data_port = self.get_parameter('port.gnss').value
+        self.data_port_baudrate = self.get_parameter('port.gnss_baudrate').value
+        self.rtcm_port = self.get_parameter('port.rtcm').value
+        self.rtcm_port_baudrate = self.get_parameter('port.rtcm_baudrate').value
+        self.heading_offset = self.get_parameter('heading_offset').value
         
         
-        
+        # Create publishers and subscribers
         self.rtcm_sub_ = self.create_subscription(
             RTCM,
             'rtcm',
@@ -101,7 +103,7 @@ class UM982Node(Node):
             heading_type, heading_len, heading_deg, heading_pitch = heading
             imu = Imu()
             
-            yaw  = np.deg2rad(heading_deg) + self.heading_rad_offset
+            yaw  = np.deg2rad(heading_deg) + self.heading_offset
             pitch = 0
             roll = 0
             
@@ -141,8 +143,6 @@ class UM982Node(Node):
             nmea_msg.sentence = nmea
             self.nmea_pub_.publish(nmea_msg)
         
-        
-    
 
 def main(args=None):
     rclpy.init(args=args)
