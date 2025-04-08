@@ -1,4 +1,5 @@
 from setuptools import find_packages, setup
+from glob import glob
 
 package_name = 'um982_py_ros'
 
@@ -7,14 +8,15 @@ setup(
     version='0.0.1',
     author='Ha Trung Nguyen',
     packages=find_packages(exclude=['test']),
+    # packages=[package_name],
+    # package_dir={'': 'src'},
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
-        ('share/' + package_name, ['package.xml']),
         # add launch dir
-        ('share/' + package_name + '/launch', ['launch/*']),
+        ('share/' + package_name + '/launch', glob('launch/*.*')),
         # add config dir
-        ('share/' + package_name + '/config', ['config/*']),
+        ('share/' + package_name + '/config', glob('config/*.*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
