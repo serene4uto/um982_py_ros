@@ -87,6 +87,8 @@ class UM982Node(Node):
                 0.0, 0.0, float(bestpos_hgtstd**2)
             ]
             
+            self.get_logger().info(f'BestPos: type = {bestpos_type}')
+            
             if bestpos_type == 'SINGLE':
                 navsat.status.status = 0
             elif bestpos_type == 'PSRDIFF':

@@ -151,6 +151,9 @@ class UM982:
         self.last_orientation_ = None
         self.last_vel_ = None
         self.last_nmea_ = None
+        self.last_bestpos_ = None
+        self.last_heading_ = None
+        
         
     def close(self):
         """ Safely stop the thread and close serial ports """

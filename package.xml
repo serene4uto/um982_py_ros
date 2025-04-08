@@ -8,7 +8,6 @@
   <license>TODO: License declaration</license>
 
   <depend>rtcm_msgs</depend>
-  <depend>navsat_msgs</depend>
 
   <export>
     <build_type>ament_python</build_type>
