@@ -8,11 +8,22 @@ import logging
 # Set up logger
 logger = logging.getLogger(__name__)
 
+def _generate_crc32_table():
+    """Generate CRC-32 lookup table according to PEP 8 guidelines."""
+    table = []
+    for i in range(256):
+        crc = i
+        for _ in range(8):
+            if crc & 1:
+                crc = (crc >> 1) ^ 0xEDB88320
+            else:
+                crc >>= 1
+        table.append(crc)
+    return table
+
+
 # Pre-compute CRC table for better performance
-NMEA_EXPEND_CRC_TABLE = [
-    (i >> 1) ^ (0xEDB88320 if i & 1 else 0) for i in range(256)
-    for _ in range(7)
-]
+NMEA_EXPEND_CRC_TABLE = _generate_crc32_table()
 
 
 def nmea_expend_crc(nmea_expend_sentence):
@@ -113,23 +124,6 @@ def bestnav_solver(msg):
 
 class UM982:
     """Interface class for UM982 GNSS receiver."""
-
-    @classmethod
-    def find_devices(cls):
-        """Auto-discover available UM982 devices."""
-        ports = list(serial.tools.list_ports.comports())
-        data_port = None
-        rtcm_port = None
-        
-        # This is a basic implementation - customize for your hardware
-        for port in ports:
-            if "USB" in port.device and data_port is None:
-                data_port = port.device
-            elif "USB" in port.device and data_port is not None:
-                rtcm_port = port.device
-                break
-        
-        return data_port, rtcm_port
 
     def __init__(
         self, 
@@ -260,6 +254,8 @@ class UM982:
                     self._message_count += 1
                     self._last_message_time = time.time()
                     
+                    print(f"Received: {frame}")  # Debug output
+                    
                     if frame.startswith("$command"):
                         pass
                     elif frame.startswith("$GNGGA") and nmea_crc(frame):
@@ -330,11 +326,9 @@ class UM982:
 
 def main():
     """Main function to demonstrate UM982 usage."""
-    # For demo purposes, try to auto-discover ports if not specified
-    data_port, rtcm_port = UM982.find_devices()
-    if not data_port:
-        data_port = "/dev/UM982"  # Default fallback
-        rtcm_port = "/dev/UM982-RTCM"  # Default fallback
+
+    data_port = "/dev/ttyUSB0"  # Default fallback
+    rtcm_port = "/dev/ttyUSB1"  # Default fallback
     
     # Use context manager for clean resource handling
     with UM982(data_port=data_port, rtcm_port=rtcm_port) as um982:

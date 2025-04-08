@@ -3,9 +3,14 @@
     ros__parameters:
     
       port:
-        gnss: /dev/UM982
+        gnss: /dev/ttyUSB0
         gnss_baudrate: 115200
-        rtcm: /dev/UM982-RTCM
+        rtcm: /dev/ttyUSB1
         rtcm_baudrate: 115200
       
       heading_offset: 0.0
+      
+      publish:
+        nmea: true
+
+      verbose: true

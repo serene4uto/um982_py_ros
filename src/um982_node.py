@@ -19,7 +19,9 @@ class UM982Node(Node):
         self.declare_parameter('port.rtcm_baudrate', 115200)
         self.declare_parameter('heading_offset', 0.0)
         self.declare_parameter('frame_id', 'gps')
+        self.declare_parameter('publish.nmea', True)
         # self.declare_parameter('publish.
+        self.declare_parameter('verbose', False)
         
         # Get parameters
         self.data_port = self.get_parameter('port.gnss').value
@@ -28,6 +30,8 @@ class UM982Node(Node):
         self.rtcm_port_baudrate = self.get_parameter('port.rtcm_baudrate').value
         self.heading_offset = self.get_parameter('heading_offset').value
         self.frame_id = self.get_parameter('frame_id').value
+        self.publish_nmea = self.get_parameter('publish.nmea').value
+        self.verbose = self.get_parameter('verbose').value
         
         # Create publishers and subscribers
         self.rtcm_sub_ = self.create_subscription(
@@ -68,7 +72,8 @@ class UM982Node(Node):
         bestpos = self.um982.get_bestpos()
         if bestpos:
             bestpos_type, bestpos_hgt, bestpos_lat, bestpos_lon, bestpos_hgtstd, bestpos_latstd, bestpos_lonstd = bestpos
-            
+            if self.verbose:
+                self.get_logger().info(f'Bestpos: {bestpos_type}, {bestpos_hgt}, {bestpos_lat}, {bestpos_lon}')
             # Reuse NavSatFix message object
             self._navsat_msg.header.stamp = current_time
             self._navsat_msg.header.frame_id = self.frame_id
@@ -95,7 +100,8 @@ class UM982Node(Node):
         heading = self.um982.get_heading()
         if heading:
             heading_type, heading_len, heading_deg, heading_pitch = heading
-            
+            if self.verbose:
+                self.get_logger().info(f'Heading: {heading_type}, {heading_len}, {heading_deg}, {heading_pitch}')
             # Calculate quaternion from Euler angles
             # Only yaw is provided by the sensor, pitch and roll are set to 0
             yaw = np.deg2rad(heading_deg) + self.heading_offset
@@ -121,7 +127,9 @@ class UM982Node(Node):
         
         # Process NMEA data
         nmea = self.um982.get_nmea()
-        if nmea:
+        if nmea and self.publish_nmea:
+            if self.verbose:
+                self.get_logger().info(f'NMEA: {nmea}')
             self._nmea_msg.header.stamp = current_time
             self._nmea_msg.header.frame_id = 'nmea'
             self._nmea_msg.sentence = nmea
