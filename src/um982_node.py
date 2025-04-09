@@ -117,6 +117,8 @@ class UM982Node(Node):
             # Only yaw is provided by the sensor, pitch and roll are set to 0
             yaw = np.deg2rad(heading_deg) + self.heading_offset
             
+            self.get_logger().info(f'Heading: {heading_deg}, Yaw: {yaw}')
+            
             # Optimized quaternion computation (half-angle)
             cy, sy = np.cos(yaw * 0.5), np.sin(yaw * 0.5)
             

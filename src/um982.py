@@ -273,7 +273,7 @@ class UM982:
                         bestpos, heading = pvtsln_solver(frame)
                         if self.heading_system == 'enu':
                             # NED to ENU conversion
-                            heading[2] = self.ned_to_enu_deg(heading[2])
+                            heading[2] = self.ned_to_enu_deg_signed(heading[2])
                         elif self.heading_system == 'ned':
                             heading[2] = heading[2]
                         with self._lock:
@@ -295,6 +295,11 @@ class UM982:
     def ned_to_enu_deg(yaw_ned_deg: float) -> float:
         """NED → ENU yaw, both in degrees, wrapped to [0, 360)."""
         return (90.0 - yaw_ned_deg) % 360.0
+    
+    @staticmethod
+    def ned_to_enu_deg_signed(yaw_ned_deg: float) -> float:
+        yaw = (90.0 - yaw_ned_deg) % 360.0
+        return yaw - 360.0 if yaw > 180.0 else yaw
     
     @property
     def bestpos(self):
