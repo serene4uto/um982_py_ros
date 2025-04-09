@@ -118,9 +118,9 @@ class UM982Node(Node):
             self._imu_msg.header.stamp = current_time
             self._imu_msg.header.frame_id = self.frame_id
             self._imu_msg.orientation_covariance = [
-                0.01, 0.0, 0.0,
-                0.0, 0.01, 0.0,
-                0.0, 0.0, 0.01
+                0.0479, 0.0, 0.0,
+                0.0, 0.020, 0.0,
+                0.0, 0.0, 0.0041
             ]
             
             self.heading_pub_.publish(self._imu_msg)

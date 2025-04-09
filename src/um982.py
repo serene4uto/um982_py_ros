@@ -201,8 +201,8 @@ class UM982:
         time.sleep(1)
         
         # Send configuration commands
-        self.write_config("gpgga 1\r\n")    # Global Positioning System Fix Data
-        self.write_config("pvtslna 1\r\n")  # Position, Velocity, Time, Satellite Information
+        self.write_config("gpgga 0.1\r\n")    # Global Positioning System Fix Data + rate Hz
+        self.write_config("pvtslna 0.1\r\n")  # Position, Velocity, Time, Satellite Information + rate Hz
         # self.write_config("bestnava 1\r\n") # Best Position and Velocity
         # self.write_config("gphpr 1\r\n")    # Attitude Parameters
         
