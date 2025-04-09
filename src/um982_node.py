@@ -13,14 +13,23 @@ class UM982Node(Node):
         self.get_logger().info('UM982 Node has been started')
         
         # Declare parameters
+        # Port for GNSS data
         self.declare_parameter('port.gnss', '/dev/UM982')
+        # Baudrate for the GNSS port
         self.declare_parameter('port.gnss_baudrate', 115200)
+        # Port for RTCM input
         self.declare_parameter('port.rtcm', '/dev/UM982-RTCM')
+        # Baudrate for the RTCM port
         self.declare_parameter('port.rtcm_baudrate', 115200)
         self.declare_parameter('heading_offset', 0.0)
+        # Frame ID for the published messages
         self.declare_parameter('frame_id', 'gps')
+        # Publish NMEA sentences
         self.declare_parameter('publish.nmea', True)
-        # self.declare_parameter('publish.
+        # Add other publish parameters as needed
+        # Coordinate system for the heading [enu, ned]
+        self.declare_parameter('heading_system', 'enu')
+        # Enable verbose logging
         self.declare_parameter('verbose', False)
         
         # Get parameters
@@ -31,6 +40,7 @@ class UM982Node(Node):
         self.heading_offset = self.get_parameter('heading_offset').value
         self.frame_id = self.get_parameter('frame_id').value
         self.publish_nmea = self.get_parameter('publish.nmea').value
+        self.heading_system = self.get_parameter('heading_system').value
         self.verbose = self.get_parameter('verbose').value
         
         # Create publishers and subscribers
@@ -53,7 +63,8 @@ class UM982Node(Node):
             data_port=self.data_port,
             data_port_baudrate=self.data_port_baudrate,
             rtcm_port=self.rtcm_port,
-            rtcm_port_baudrate=self.rtcm_port_baudrate
+            rtcm_port_baudrate=self.rtcm_port_baudrate,
+            heading_system=self.heading_system,
         )
         self.um982.open()
         
@@ -128,8 +139,8 @@ class UM982Node(Node):
         # Process NMEA data
         nmea = self.um982.get_nmea()
         if nmea and self.publish_nmea:
-            if self.verbose:
-                self.get_logger().info(f'NMEA: {nmea}')
+            # if self.verbose:
+            #     self.get_logger().info(f'NMEA: {nmea}')
             self._nmea_msg.header.stamp = current_time
             self._nmea_msg.header.frame_id = 'nmea'
             self._nmea_msg.sentence = nmea

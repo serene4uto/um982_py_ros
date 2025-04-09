@@ -9,6 +9,8 @@
         rtcm_baudrate: 115200
       
       heading_offset: 0.0
+
+      heading_system: 'enu'
       
       publish:
         nmea: true

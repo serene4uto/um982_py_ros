@@ -59,7 +59,7 @@ def nmea_crc(nmea_sentence):
 
 
 def msg_separate(msg):
-    """Parse NMEA message into header and body components."""
+    """Parse None NMEA message into header and body."""
     parts = msg[:msg.find('*')].split(';')
     return {
         'header': parts[0],
@@ -73,7 +73,7 @@ def pvtsln_solver(msg):
     body = parts['body']
     
     # Unpack position data in one operation
-    bestpos = (
+    bestpos = [
         body[0],                # type
         float(body[1]),         # height
         float(body[2]),         # latitude
@@ -81,15 +81,15 @@ def pvtsln_solver(msg):
         float(body[4]),         # height std
         float(body[5]),         # latitude std
         float(body[6])          # longitude std
-    )
+    ]
     
     # Unpack heading data in one operation
-    heading = (
+    heading = [
         body[20],               # type
         float(body[21]),        # length
-        float(body[21]),        # degrees
-        float(body[22])         # pitch
-    )
+        float(body[22]),        # degrees
+        float(body[23])         # pitch
+    ]
     
     return bestpos, heading
 
@@ -100,7 +100,7 @@ def gnhpr_solver(msg):
     body = parts['body']
     
     # Return heading, pitch, roll tuple
-    return (float(body[2]), float(body[3]), float(body[4]))
+    return [float(body[2]), float(body[3]), float(body[4])]
 
 
 def bestnav_solver(msg):
@@ -124,13 +124,16 @@ def bestnav_solver(msg):
 
 class UM982:
     """Interface class for UM982 GNSS receiver."""
+    
+    
 
     def __init__(
         self, 
         data_port=None, 
         data_port_baudrate=115200,
         rtcm_port=None, 
-        rtcm_port_baudrate=115200):
+        rtcm_port_baudrate=115200,
+        heading_system='ned'):
         """
         Initialize the UM982 interface.
         
@@ -139,11 +142,16 @@ class UM982:
             data_port_baudrate: Baud rate for data port
             rtcm_port: Serial port for RTCM corrections
             rtcm_port_baudrate: Baud rate for RTCM port
+            world: Heading/Orientation reference frame ('std', 'enu', 'ned')
         """
         self.data_port = data_port
         self.data_port_baudrate = data_port_baudrate
         self.rtcm_port = rtcm_port
         self.rtcm_port_baudrate = rtcm_port_baudrate
+        if heading_system not in ['enu', 'ned']:
+            raise ValueError("heading_system must be 'enu' or 'ned'")
+        self.heading_system = heading_system
+        
         self.running = False
         self._lock = threading.Lock()  # For thread-safe access
         self._message_count = 0
@@ -254,7 +262,7 @@ class UM982:
                     self._message_count += 1
                     self._last_message_time = time.time()
                     
-                    print(f"Received: {frame}")  # Debug output
+                    # print(f"Received: {frame}")  # Debug output
                     
                     if frame.startswith("$command"):
                         pass
@@ -263,6 +271,11 @@ class UM982:
                             self._last_nmea = frame
                     elif frame.startswith("#PVTSLNA") and nmea_expend_crc(frame):
                         bestpos, heading = pvtsln_solver(frame)
+                        if self.heading_system == 'enu':
+                            # NED to ENU conversion
+                            heading[2] = self.ned_to_enu_deg(heading[2])
+                        elif self.heading_system == 'ned':
+                            heading[2] = heading[2]
                         with self._lock:
                             self._last_bestpos = bestpos
                             self._last_heading = heading
@@ -277,6 +290,11 @@ class UM982:
                 logger.error(f"Error reading serial: {e}")
                 self.running = False
                 break  # Exit the loop if there's an error
+    
+    @staticmethod
+    def ned_to_enu_deg(yaw_ned_deg: float) -> float:
+        """NED → ENU yaw, both in degrees, wrapped to [0, 360)."""
+        return (90.0 - yaw_ned_deg) % 360.0
     
     @property
     def bestpos(self):
