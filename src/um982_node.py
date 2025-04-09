@@ -115,9 +115,11 @@ class UM982Node(Node):
                 self.get_logger().info(f'Heading: {heading_type}, {heading_len}, {heading_deg}, {heading_pitch}')
             # Calculate quaternion from Euler angles
             # Only yaw is provided by the sensor, pitch and roll are set to 0
-            yaw = np.deg2rad(heading_deg) + self.heading_offset
+            yaw = np.deg2rad(heading_deg)
             
             self.get_logger().info(f'Heading: {heading_deg}, Yaw: {yaw}')
+
+            yaw = yaw + + self.heading_offset
             
             # Optimized quaternion computation (half-angle)
             cy, sy = np.cos(yaw * 0.5), np.sin(yaw * 0.5)
